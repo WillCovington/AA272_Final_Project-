@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from data_organization_test_3 import organize_raw_data
+from data_organization import organize_raw_data
 import math
 
 
@@ -9,9 +9,8 @@ import math
 #  A. SKY PLOT UTILITY
 #############################################
 def plot_skyplot(sat_dfs):
-    """
-    Create a skyplot using any satellite that has elevation/azimuth values.
-    """
+    # takes in as an argument the dataframes for howver many satellites you want the skyplot of
+
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(111, projection="polar")
     ax.set_theta_zero_location('N')
