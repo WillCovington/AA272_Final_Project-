@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
+from matplotlib import cm
 
 # ==========================================================
 # Earth constants (WGS-84)
@@ -315,16 +316,283 @@ def simulate_multiconstellation_with_slider(
     slider.on_changed(update)
     update(0)
     plt.show()
+    return sat_positions, times
+    
+# =====================================================================
+# BUILDING SHADOW ANALYSIS MODULE
+# Integrated into nominal orbit propagation script
+# =====================================================================
+
+def building_shadow_angle(L, X):
+    """
+    Returns the building's angular shadow width (deg)
+    L = building width (meters)
+    X = distance from building (meters)
+    """
+    return np.degrees(2 * np.arctan(L / (2 * X)))
+
+
+def los_to_nlos_transitions(az_arr, el_arr, t, AZ_b, theta_block):
+    """
+    Identify LOS→NLOS transitions due to building shadow
+    NOT horizon elevation loss, only building-blocking events.
+    """
+    # wrap azimuth to 0–360
+    az = np.mod(az_arr, 360)
+
+    # Visible AND not in shadow
+    los = (
+        (el_arr > 0) &
+        ((az < AZ_b) | (az > AZ_b + theta_block))
+    )
+
+    # Visible AND inside shadow
+    nlos = (
+        (el_arr > 0) &
+        (az >= AZ_b) &
+        (az <= AZ_b + theta_block)
+    )
+
+    transition_times = []
+    for k in range(len(t) - 1):
+        if los[k] and nlos[k+1]:
+            transition_times.append(t[k+1])
+
+    return transition_times
+
+
+def mean_gap_for_sat(az_arr, el_arr, t, AZ_b, theta_block):
+    """
+    Compute average time between LOS→NLOS transitions for one satellite.
+    """
+    ts = los_to_nlos_transitions(az_arr, el_arr, t, AZ_b, theta_block)
+
+    if len(ts) < 2:
+        return np.nan
+
+    gaps = np.diff(ts)
+    return np.mean(gaps)
+
+
+def mean_gap_all_sats(sat_positions, times, L, X, AZ_b=0):
+    """
+    Mean LOS→NLOS time gap across all satellites.
+    sat_positions[sid] must contain "az" and "el"
+
+    L = building width (m)
+    X = distance from building (m)
+    AZ_b = building center azimuth (deg)
+    """
+    theta_block = building_shadow_angle(L, X)
+    gaps = []
+
+    for sid, sdat in sat_positions.items():
+        az = sdat["az"]
+        el = sdat["el"]
+        g = mean_gap_for_sat(az, el, times, AZ_b, theta_block)
+        if not np.isnan(g):
+            gaps.append(g)
+
+    if len(gaps) == 0:
+        return np.nan, theta_block
+
+    return np.mean(gaps), theta_block
+
+
+# ---------------------------------------------------------
+# Optional parameter sweeps
+# ---------------------------------------------------------
+
+def sweep_vs_distance(sat_positions, times, L_fixed, X_values, AZ_b=0):
+    results = []
+    for X in X_values:
+        g, _ = mean_gap_all_sats(sat_positions, times, L_fixed, X, AZ_b)
+        results.append(g)
+    return np.array(results)
+
+
+def sweep_vs_width(sat_positions, times, X_fixed, L_values, AZ_b=0):
+    results = []
+    for L in L_values:
+        g, _ = mean_gap_all_sats(sat_positions, times, L, X_fixed, AZ_b)
+        results.append(g)
+    return np.array(results)
+
+def plot_los_nlos_timeseries(sat_positions, times, L, X, AZ_b=0):
+    """
+    Plot a time-series showing LOS vs NLOS for every satellite.
+    Uses your existing building-shadow model.
+    """
+
+    # building shadow width
+    theta_block = building_shadow_angle(L, X)
+
+    sats = sorted(sat_positions.keys())
+    Ns = len(sats)
+
+    # Build LOS/NLOS mask for each satellite
+    los_mask = {}
+
+    for sid in sats:
+        az = np.mod(sat_positions[sid]["az"], 360)
+        el = sat_positions[sid]["el"]
+
+        # visible & NOT in shadow
+        los = (
+            (el > 0) &
+            ((az < AZ_b) | (az > AZ_b + theta_block))
+        )
+
+        # visible & in shadow
+        nlos = (
+            (el > 0) &
+            (az >= AZ_b) & (az <= AZ_b + theta_block)
+        )
+
+        # below horizon also NLOS
+        los_mask[sid] = los.astype(int) - nlos.astype(int)
+        # Meaning: +1 = LOS, -1 = NLOS, 0 = below horizon
+
+    # ---------------------------------------------------------
+    # PLOT
+    # ---------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(12, 7))
+
+    for i, sid in enumerate(sats):
+        y = np.full(len(times), i)
+
+        state = los_mask[sid]
+
+        # build masked LOS and NLOS segments
+        los_seg  = np.where(state == 1, i, np.nan)
+        nlos_seg = np.where(state == -1, i, np.nan)
+
+        ax.plot(times, los_seg,  color="green", linewidth=3)
+        ax.plot(times, nlos_seg, color="red",   linewidth=3)
+
+    ax.set_xlabel("Time (seconds)")
+    ax.set_ylabel("Satellite ID (index)")
+
+    yticks = list(range(len(sats)))
+    ax.set_yticks(yticks)
+    ax.set_yticklabels([f"Sat {s}" for s in sats])
+
+    ax.grid(True)
+    ax.set_title(f"LOS (green) vs NLOS (red)\nBuilding at AZ={AZ_b}°, width={theta_block:.1f}° (Hoover Tower Accurate)")
+
+    plt.tight_layout()
+    plt.show()
+
+
+def surface_plot_gap_times(
+        sat_positions, times,
+        L_values, X_values,
+        AZ_b=0,
+        plot_type="surface"   # or "heatmap"
+    ):
+    """
+    Create a 3D surface (or 2D heatmap) showing:
+        T_avg = mean LOS→NLOS gap time (sec)
+        as function of building width L (m) and distance X (m)
+
+    L_values: list or array of building widths
+    X_values: list or array of distances from building
+    """
+
+    L_grid, X_grid = np.meshgrid(L_values, X_values)
+    T_grid = np.zeros_like(L_grid, dtype=float)
+
+    # Compute mean gap times over parameter sweep
+    for i in range(len(X_values)):
+        for j in range(len(L_values)):
+            L = L_grid[i, j]
+            X = X_grid[i, j]
+            T_avg, _ = mean_gap_all_sats(sat_positions, times, L, X, AZ_b)
+            T_grid[i, j] = T_avg if not np.isnan(T_avg) else np.nan
+
+    # ======================================================
+    # 3D SURFACE PLOT
+    # ======================================================
+    if plot_type == "surface":
+        fig = plt.figure(figsize=(12, 7))
+        ax = fig.add_subplot(111, projection="3d")
+
+        surf = ax.plot_surface(
+            L_grid, X_grid, T_grid,
+            cmap=cm.viridis,
+            edgecolor="none"
+        )
+
+        fig.colorbar(surf, shrink=0.5, aspect=10, label="Mean Gap Time (sec)")
+
+        ax.set_xlabel("Building Width L (m)")
+        ax.set_ylabel("Distance X (m)")
+        ax.set_zlabel("Mean LOS→NLOS Gap (sec)")
+        ax.set_title("Mean Shadow Gap Time as Function of Building Geometry")
+
+        plt.tight_layout()
+        plt.show()
+
+    # ======================================================
+    # 2D HEATMAP
+    # ======================================================
+    elif plot_type == "heatmap":
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        c = ax.pcolormesh(L_grid, X_grid, T_grid, shading="auto", cmap="viridis")
+        plt.colorbar(c, label="Mean Gap Time (sec)")
+
+        ax.set_xlabel("Building Width L (m)")
+        ax.set_ylabel("Distance X (m)")
+        ax.set_title("Mean LOS→NLOS Gap Time Heatmap")
+
+        plt.tight_layout()
+        plt.show()
+
+    return L_grid, X_grid, T_grid
 
 # ==========================================================
 # EXAMPLE RUN
 # ==========================================================
 if __name__ == "__main__":
     # Stanford University coordinates
-    simulate_multiconstellation_with_slider(
+    sat_positions, times = simulate_multiconstellation_with_slider(
         lat=37.4275,
         lon=-122.1697,
-        duration_hours=4,
+        duration_hours=24,
         dt=30,
         trail_minutes=15
     )
+    
+    ###################################
+    # Following lines are for one kind of plot, everything after the next set of hashes is for a different kind of plot
+    #for sid, s in sat_positions.items():
+        #if np.any(~np.isnan(s["az"])):
+            #az_valid = s["az"][~np.isnan(s["az"])]
+            #print(f"Sat {sid}: az range = {az_valid.min():.1f} → {az_valid.max():.1f}")
+
+
+    # L = 38.1       # building width in meters
+    # X = 50       # distance from building in meters
+    # AZ_b = 0     # building pointing North
+
+   # T_avg, theta_block = mean_gap_all_sats(sat_positions, times, L, X, AZ_b)
+
+    # print("Building shadow angle (deg):", theta_block)
+    # print("Average LOS→NLOS gap time (sec):", T_avg)
+    
+    # plot_los_nlos_timeseries(sat_positions, times, L, X, AZ_b)
+    ###################################
+    
+    L_vals = np.linspace(5, 80, 20)   # building width in meters
+    X_vals = np.linspace(10, 200, 20) # distance from building
+
+    surface_plot_gap_times(
+        sat_positions, times,
+        L_values=L_vals,
+        X_values=X_vals,
+        AZ_b=0,              # building centered at North
+        plot_type="surface"  # or "heatmap"
+    )
+
+
