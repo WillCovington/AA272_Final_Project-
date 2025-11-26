@@ -5,7 +5,7 @@ from data_organization import organize_raw_data
 from plot_gnss_data import plot_all
 from visualize_interaction import visualize_satellites
 # import cno_data
-directory = "2025_11_16_15_57_00" # CHANGE ME FOR DIFFERENT DATA FILE
+directory = "2025_11_24_13_03_46" # CHANGE ME FOR DIFFERENT DATA FILE
 organized_data = organize_raw_data(directory)
 
 # the outputs from organize_raw_data are a modified form of the data taken in from our text file as well as a dataframe with the information for each satellite observed
