@@ -4,8 +4,7 @@ import gnss_lib_py as glp
 from data_organization import organize_raw_data
 from plot_gnss_data import plot_all
 from visualize_interaction import visualize_satellites
-
-# read in directory data
+# import cno_data
 directory = "2025_11_24_13_03_46" # CHANGE ME FOR DIFFERENT DATA FILE
 organized_data = organize_raw_data(directory)
 

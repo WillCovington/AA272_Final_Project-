@@ -209,14 +209,14 @@ def organize_raw_data(directory_input):
     rinex_obs_file = base + ".25o"
 
     year, month, day, doy = get_day_of_year(directory_input)
-    # rinex_nav_file = f"./{directory_input}/brdc{doy}0.25n"
+    rinex_nav_file = f"./{directory_input}/brdc{doy}0.25n"
 
     txt_raw = glp.AndroidRawGnss(txt_file)
     nmea_raw = glp.Nmea(nmea_file)
 
     updated_rinex = convert_rinex_for_glp(rinex_obs_file)
     rinex_obs_raw = glp.RinexObs(updated_rinex)
-    #rinex_nav_raw = glp.RinexNav(rinex_nav_file)
+    rinex_nav_raw = glp.RinexNav(rinex_nav_file)
 
     txt_data = txt_raw.preprocess(txt_file)
     txt_data = add_gps_millis_to_txt(txt_data)
@@ -242,4 +242,6 @@ def organize_raw_data(directory_input):
     return {
         "txt_full": txt_full,
         "satellite_dataframes": sat_dfs,
+        "rinex_obs": rinex_obs_raw,
+        "rinex_nav": rinex_nav_raw,
     }
