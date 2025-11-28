@@ -86,18 +86,27 @@ def add_gps_millis_to_txt(txt_df):
 # Convert receiver LLA → ECEF
 # ------------------------------
 def lla_to_ecef(lat_deg, lon_deg, alt_m):
-    a = 6378137.0
-    e2 = 6.69437999014e-3
+    # a = 6378137.0
+    # e2 = 6.69437999014e-3
 
-    lat = np.radians(lat_deg)
-    lon = np.radians(lon_deg)
-    N = a / np.sqrt(1 - e2 * np.sin(lat)**2)
+    # lat = np.radians(lat_deg)
+    # lon = np.radians(lon_deg)
+    # N = a / np.sqrt(1 - e2 * np.sin(lat)**2)
 
-    X = (N + alt_m) * np.cos(lat) * np.cos(lon)
-    Y = (N + alt_m) * np.cos(lat) * np.sin(lon)
-    Z = (N * (1 - e2) + alt_m) * np.sin(lat)
+    # X = (N + alt_m) * np.cos(lat) * np.cos(lon)
+    # Y = (N + alt_m) * np.cos(lat) * np.sin(lon)
+    # Z = (N * (1 - e2) + alt_m) * np.sin(lat)
 
-    return X, Y, Z
+    # return X, Y, Z
+    X = []
+    Y = []
+    Z = []
+    for latitude, longitude, altitude in zip(lat_deg, lon_deg, alt_m):
+        ecef_coords = glp.geodetic_to_ecef(np.array([[latitude], [longitude], [altitude]]))
+        X.append(ecef_coords[0])
+        Y.append(ecef_coords[1])
+        Z.append(ecef_coords[2])
+    return np.array(X), np.array(Y), np.array(Z)
 
 
 # ------------------------------
@@ -131,23 +140,40 @@ def build_nmea_receiver_positions(nmea_data, txt_data):
 # Compute elevation / azimuth
 # ------------------------------
 def add_elevation_azimuth(df):
+    # out = df.copy()
+
+    # dx = out["SvPositionEcefXMeters"] - out["rx_ecef_x"]
+    # dy = out["SvPositionEcefYMeters"] - out["rx_ecef_y"]
+    # dz = out["SvPositionEcefZMeters"] - out["rx_ecef_z"]
+
+    # lat = np.radians(out["lat_rx_deg"])
+    # lon = np.radians(out["lon_rx_deg"])
+
+    # t = np.cos(lat) * np.cos(lon) * dx + np.cos(lat) * np.sin(lon) * dy + np.sin(lat) * dz
+    # e = -np.sin(lon) * dx + np.cos(lon) * dy
+    # n = -np.sin(lat) * np.cos(lon) * dx - np.sin(lat) * np.sin(lon) * dy + np.cos(lat) * dz
+
+    # out["azimuth_deg"] = np.degrees(np.arctan2(e, n))
+    # out["elevation_deg"] = np.degrees(np.arctan2(t, np.sqrt(e**2 + n**2)))
+
+    # out.loc[out["azimuth_deg"] < 0, "azimuth_deg"] += 360
+    # return out
     out = df.copy()
+    az = []
+    el = []
+    
+    for x_rx_m, y_rx_m, z_rx_m, x_sv_m, y_sv_m, z_sv_m in zip(
+        out["rx_ecef_x"].values, out["rx_ecef_y"].values, out["rx_ecef_z"].values,
+        out["SvPositionEcefXMeters"].values, out["SvPositionEcefYMeters"].values,
+        out["SvPositionEcefZMeters"].values):
 
-    dx = out["SvPositionEcefXMeters"] - out["rx_ecef_x"]
-    dy = out["SvPositionEcefYMeters"] - out["rx_ecef_y"]
-    dz = out["SvPositionEcefZMeters"] - out["rx_ecef_z"]
-
-    lat = np.radians(out["lat_rx_deg"])
-    lon = np.radians(out["lon_rx_deg"])
-
-    t = np.cos(lat) * np.cos(lon) * dx + np.cos(lat) * np.sin(lon) * dy + np.sin(lat) * dz
-    e = -np.sin(lon) * dx + np.cos(lon) * dy
-    n = -np.sin(lat) * np.cos(lon) * dx - np.sin(lat) * np.sin(lon) * dy + np.cos(lat) * dz
-
-    out["azimuth_deg"] = np.degrees(np.arctan2(e, n))
-    out["elevation_deg"] = np.degrees(np.arctan2(t, np.sqrt(e**2 + n**2)))
-
-    out.loc[out["azimuth_deg"] < 0, "azimuth_deg"] += 360
+        el_az = glp.ecef_to_el_az(np.array([x_rx_m, y_rx_m, z_rx_m]).reshape(3, 1),
+                                  np.array([x_sv_m, y_sv_m, z_sv_m]).reshape(3, 1))
+        el.append(el_az[0][0])
+        az.append(el_az[1][0])
+        
+    out["azimuth_deg"] = np.array(az)
+    out["elevation_deg"] = np.array(el)
     return out
 
 
