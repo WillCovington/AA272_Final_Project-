@@ -1,18 +1,10 @@
 import numpy as np
-from pyproj import Transformer
-
+import pymap3d as pm
 
 def lla_to_enu(lat, lon, alt, lat0, lon0, alt0):
     """Convert LLA → ENU with respect to reference LLA (lat0, lon0, alt0)."""
-    transformer = Transformer.from_crs(
-        "epsg:4979",  # WGS84 (lat, lon, ellipsoidal height)
-        f"+proj=enu +lat_0={lat0} +lon_0={lon0} +h_0={alt0} "
-        "+x_0=0 +y_0=0 +z_0=0 +units=m +no_defs",
-        always_xy=True
-    )
-    # transformer expects lon, lat, height
-    x, y, z = transformer.transform(lon, lat, alt)
-    return np.array([x, y, z])
+    e, n, u = pm.geodetic2enu(lat, lon, alt, lat0, lon0, alt0, ell=None, deg=True)
+    return np.array([e, n, u])
 
 
 def heading_to_unit_vector(heading_deg):
@@ -67,7 +59,7 @@ def distance_to_polygon_in_heading(polygon_lla, observer_lla, heading_deg):
     lat0, lon0, alt0 = observer_lla
 
     # Convert observer and polygon to ENU
-    obsENU = lla_to_enu(lat0, lon0, alt0, lat0, lon0, alt0)
+    obsENU = np.array([0.0, 0.0, 0.0])
     polyENU = [lla_to_enu(lat, lon, alt, lat0, lon0, alt0)
                for lat, lon, alt in polygon_lla]
 

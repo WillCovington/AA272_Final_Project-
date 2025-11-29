@@ -18,6 +18,11 @@ Those are the main files so far. Here are some extras that aren't as important b
 
 **nominal_orbit_propogation.py**: this is a numerical solver of a bunch of GNSS satellites paths given some generic orbital parameters for GNSS-satellite constellations and your current locations (lat, long, alt). I'm planning on using this to try and calculate the mean time for a satellite to cross based on distance from some obstruction, so it's not entirely accurate but I think it's accurate enough for the time being.
 
+**building_height_estimator.py**: this script filters the dataframes for all satellites based on a       maximum elevation angle and C/N0 (determined heuristically), and uses this noisy data to estimate the heights of any surrounding buildings. This is done by defining the origin of a local ENU frame at the receivers location in the urban canyon. The canyon "floor" is defined as a 2D polygon that surrounds the receiver. The algorithm then uses the azimuths in the filtered satellite data to define the heading angle from the receiver to the satellite and calculates the horizontal distance to the first obstruction 
+in that direction. The height of the obstruction can then be estimated using the tangent of the
+satellite's elevation angle.
+
+**compute_distance_to_walls.py**: this file contains many of the helper functions / utilities used by building_height_estimator.py, including coordinate conversions from lla to enu, and functions to determine the geometric intersection between the receiver heading unit vector and the perimiter of the urban canyon polygon.
 
 
 ### File Organization
