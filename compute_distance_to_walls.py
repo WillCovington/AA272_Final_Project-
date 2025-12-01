@@ -1,5 +1,6 @@
 import numpy as np
 import pymap3d as pm
+import matplotlib.pyplot as plt
 
 def lla_to_enu(lat, lon, alt, lat0, lon0, alt0):
     """Convert LLA → ENU with respect to reference LLA (lat0, lon0, alt0)."""
@@ -59,7 +60,7 @@ def distance_to_polygon_in_heading(polygon_lla, observer_lla, heading_deg):
     lat0, lon0, alt0 = observer_lla
 
     # Convert observer and polygon to ENU
-    obsENU = np.array([0.0, 0.0, 0.0])
+    obsENU = lla_to_enu(lat0, lon0, alt0, lat0, lon0, alt0)
     polyENU = [lla_to_enu(lat, lon, alt, lat0, lon0, alt0)
                for lat, lon, alt in polygon_lla]
 
