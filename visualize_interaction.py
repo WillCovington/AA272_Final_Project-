@@ -122,7 +122,7 @@ def visualize_satellites(sat_dfs, joint_exclusion=True):
         color = sat_colors[label]
 
         theta = np.deg2rad(df["azimuth_deg"].to_numpy())
-        r = 90.0 - df["elevation_deg"].to_numpy()
+        r = df["elevation_deg"].to_numpy() # 90.0 - df["elevation_deg"].to_numpy()
         x = df["gps_millis"].to_numpy()
 
         # Full track on skyplot
@@ -273,7 +273,7 @@ def visualize_satellites(sat_dfs, joint_exclusion=True):
                 az = df["azimuth_deg"].iloc[idx]
                 el = df["elevation_deg"].iloc[idx]
                 theta = np.deg2rad(az)
-                r = 90.0 - el
+                r = el #90.0 - el
 
                 sat_markers[label].set_data([theta], [r])
                 sat_markers[label].set_alpha(1.0)
